@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crys1s Convert - Конвертер файлов</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fffbe6',
+              100: '#fff1b8',
+              400: '#ffcd00',
+              500: '#eab308',
+              600: '#ca8a04',
+              700: '#a16207',
+            },
+            darkbg: '#09090b',
+            darkcard: '#141417',
+            darkborder: '#27272a',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome & Libraries -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #09090b;
+      color: #f4f4f5;
+      user-select: none;
+    }
+    .glass-panel {
+      background: rgba(20, 20, 23, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #eab308;
+    }
+    input[type=range] {
+      accent-color: #eab308;
+    }
+
+    /* Dual Range Timeline Styling */
+    .range-slider-thumb::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #eab308;
+      cursor: pointer;
+      border: 2px solid #09090b;
+      box-shadow: 0 0 8px rgba(234, 179, 8, 0.6);
+      pointer-events: auto;
+    }
+    .range-slider-thumb::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #eab308;
+      cursor: pointer;
+      border: 2px solid #09090b;
+      box-shadow: 0 0 8px rgba(234, 179, 8, 0.6);
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-brand-500 selection:text-black">
+
+  <!-- Global Drag & Drop Overlay -->
+  <div id="globalDropOverlay" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md border-4 border-dashed border-brand-500 hidden flex flex-col items-center justify-center pointer-events-none transition-all duration-300">
+    <div class="w-24 h-24 rounded-full bg-brand-500/20 border border-brand-500 flex items-center justify-center text-brand-400 animate-bounce mb-4">
+      <i class="fa-solid fa-cloud-arrow-up text-4xl"></i>
+    </div>
+    <h2 class="text-2xl font-extrabold text-white">Отпустите файл для замены</h2>
+    <p class="text-sm text-zinc-400 mt-2">Старый файл будет сброшен автоматически</p>
+  </div>
+
+  <!-- Eyedropper Fullscreen Overlay Modal -->
+  <div id="eyedropperModal" class="fixed inset-0 z-50 bg-black/95 hidden flex flex-col items-center justify-center p-4">
+    <div class="absolute top-4 right-4 flex items-center gap-4">
+      <div class="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-xl flex items-center gap-3 shadow-2xl">
+        <span class="text-xs text-zinc-400">HEX пикселя:</span>
+        <span id="eyedropperHexText" class="text-sm font-mono font-bold text-brand-400">#000000</span>
+        <button id="copyHexBtn" class="px-3 py-1 bg-brand-500 hover:bg-brand-400 text-black text-xs font-bold rounded-lg transition-all">Скопировать</button>
+      </div>
+      <button onclick="closeEyedropper()" class="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center text-lg transition-all">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="relative max-w-full max-h-[85vh] overflow-auto border border-zinc-800 rounded-2xl shadow-2xl bg-black">
+      <canvas id="eyedropperCanvas" class="cursor-crosshair block"></canvas>
+    </div>
+    <p class="text-xs text-zinc-400 mt-3">Наведите курсор на нужную точку фото и кликните для фиксации цвета</p>
+  </div>
+
+  <!-- Header -->
+  <header class="w-full border-b border-darkborder/80 glass-panel sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="resetToInitial()">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-brand-500 to-amber-300 flex items-center justify-center text-black font-black text-xl shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+            Crys1s <span class="text-brand-500">Convert</span>
+          </h1>
+          <p class="text-xs text-zinc-400">Быстрый локальный медиа-редактор</p>
+        </div>
+      </div>
+
+      <div id="fileChangeHeaderBtn" class="hidden">
+        <button onclick="triggerFilePicker()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-all flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-folder-open text-brand-500"></i> Сменить файл
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <input type="file" id="fileInput" class="hidden" />
+
+  <!-- Main Container -->
+  <main class="flex-grow flex items-center justify-center p-4 sm:p-6 w-full max-w-7xl mx-auto">
+
+    <!-- STEP 1: INITIAL DROPZONE -->
+    <div id="initialView" class="w-full max-w-3xl py-12 flex flex-col items-center justify-center text-center">
+      <div 
+        onclick="triggerFilePicker()"
+        class="w-full border-2 border-dashed border-zinc-700 hover:border-brand-500 rounded-3xl p-12 sm:p-20 flex flex-col items-center justify-center cursor-pointer glass-panel group transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10"
+      >
+        <div class="w-24 h-24 rounded-2xl bg-zinc-800/80 group-hover:bg-brand-500/10 group-hover:scale-110 flex items-center justify-center transition-all duration-300 border border-zinc-700 group-hover:border-brand-500/50 mb-6 shadow-inner">
+          <i class="fa-solid fa-file-arrow-up text-4xl text-zinc-400 group-hover:text-brand-400 transition-colors"></i>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-2">
+          Закиньте файл или <span class="text-brand-500 underline underline-offset-4">кликните</span>
+        </h2>
+        <p class="text-sm text-zinc-400 max-w-md">
+          Изображения, видео, аудио или документы. Интерактивная рамка, поворот фото, сетка 3х3 и таймлайн.
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 2: WORKSPACE -->
+    <div id="workspaceView" class="hidden w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+      <!-- LEFT COLUMN: Preview & Editing Controls -->
+      <div class="glass-panel rounded-3xl p-6 border border-darkborder flex flex-col space-y-6 shadow-xl">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-zinc-800">
+          <div class="flex items-center space-x-3 min-w-0">
+            <div id="fileTypeBadge" class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-lg text-brand-400 border border-zinc-700 shrink-0">
+              <i class="fa-solid fa-file"></i>
+            </div>
+            <div class="min-w-0">
+              <h3 id="fileNameText" class="font-bold text-white text-base truncate max-w-xs">filename.ext</h3>
+              <p id="fileSizeText" class="text-xs text-zinc-400">0 MB</p>
+            </div>
+          </div>
+          <button onclick="triggerFilePicker()" class="text-xs text-zinc-400 hover:text-brand-400 transition-colors flex items-center gap-1">
+            <i class="fa-solid fa-rotate"></i> Заменить
+          </button>
+        </div>
+
+        <!-- Preview Area Container -->
+        <div class="relative w-full bg-black/60 rounded-2xl border border-zinc-800 overflow-hidden min-h-[280px] flex items-center justify-center" id="previewContainer">
+          
+          <!-- Image Canvas Preview -->
+          <div id="imagePreviewBox" class="relative w-full h-full flex flex-col items-center justify-center p-2 hidden">
+            <canvas id="cropCanvas" class="max-w-full max-h-[340px] rounded-lg shadow-lg cursor-move"></canvas>
+            <div class="mt-3 flex items-center gap-3">
+              <button onclick="openEyedropper()" class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-brand-400 border border-zinc-700 text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-eye-dropper"></i> Пипетка HEX
+              </button>
+            </div>
+          </div>
+
+          <!-- Video Preview -->
+          <div id="videoPreviewBox" class="w-full flex flex-col items-center justify-center p-2 hidden">
+            <video id="videoElement" controls class="max-w-full max-h-[300px] rounded-lg shadow-lg"></video>
+          </div>
+
+          <!-- Audio Preview -->
+          <div id="audioPreviewBox" class="w-full p-8 flex flex-col items-center justify-center text-center space-y-4 hidden">
+            <div class="w-20 h-20 rounded-full bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-brand-400 text-3xl animate-pulse">
+              <i class="fa-solid fa-compact-disc"></i>
+            </div>
+            <audio id="audioElement" controls class="w-full"></audio>
+          </div>
+
+          <!-- Document Preview -->
+          <div id="docPreviewBox" class="w-full p-6 text-zinc-300 text-xs font-mono max-h-[260px] overflow-y-auto hidden">
+            <pre id="docPreviewText" class="whitespace-pre-wrap"></pre>
+          </div>
+        </div>
+
+        <!-- CONTROLS SECTION -->
+        <div id="controlsContainer" class="space-y-5">
+          
+          <!-- Color Invert Toggle -->
+          <div id="colorInvertControl" class="flex items-center justify-between bg-zinc-900/50 p-3.5 rounded-2xl border border-zinc-800 hidden">
+            <div class="flex items-center gap-2.5">
+              <i class="fa-solid fa-circle-half-stroke text-brand-500 text-base"></i>
+              <div>
+                <span class="text-xs font-bold text-white block">Инверсия цветов</span>
+                <span class="text-[10px] text-zinc-400">Инвертировать цвета в фото или видео</span>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="invertColorsToggle" class="sr-only peer">
+              <div class="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
+            </label>
+          </div>
+
+          <!-- Crop & Rotation Controls (For Images) -->
+          <div id="cropControls" class="space-y-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 hidden">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-crop-simple text-brand-500"></i> Рамка обрезки и Поворот
+              </span>
+              <span class="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">Ctrl + Колесико = Поворот фото</span>
+            </div>
+
+            <!-- Dimensions -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-[11px] text-zinc-400 block mb-1">Ширина (px):</label>
+                <input type="number" id="cropWidthInput" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <label class="text-[11px] text-zinc-400 block mb-1">Высота (px):</label>
+                <input type="number" id="cropHeightInput" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500" />
+              </div>
+            </div>
+
+            <!-- Rotation Slider -->
+            <div class="pt-2 border-t border-zinc-800">
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <i class="fa-solid fa-rotate text-brand-500"></i> Поворот фото:
+                </label>
+                <div class="flex items-center gap-2">
+                  <span id="rotationDegreeText" class="text-[11px] font-mono font-bold text-brand-400">0°</span>
+                  <button onclick="resetRotation()" class="text-[10px] text-zinc-500 hover:text-zinc-300 underline">Сброс</button>
+                </div>
+              </div>
+              <input type="range" id="rotationSlider" min="-180" max="180" value="0" step="1" class="w-full cursor-pointer" />
+            </div>
+          </div>
+
+          <!-- Trimming Timeline & Volume Controls (For Audio & Video) -->
+          <div id="mediaControls" class="space-y-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 hidden">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-timeline text-brand-500"></i> Временная линия обрезки
+              </span>
+              <span id="durationBadge" class="text-[11px] font-mono text-brand-400 bg-zinc-800 px-2 py-0.5 rounded">00:00 / 00:00</span>
+            </div>
+
+            <!-- VISIBLE DUAL SLIDER TIMELINE -->
+            <div class="relative w-full py-4 select-none">
+              <div class="relative w-full h-3 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
+                <div id="timelineProgress" class="absolute h-full bg-brand-500/50" style="left: 0%; right: 0%;"></div>
+              </div>
+              <input type="range" id="rangeStart" min="0" max="100" step="0.1" value="0" 
+                     class="range-slider-thumb absolute inset-0 w-full h-full opacity-100 bg-transparent appearance-none pointer-events-none z-20" />
+              <input type="range" id="rangeEnd" min="0" max="100" step="0.1" value="100" 
+                     class="range-slider-thumb absolute inset-0 w-full h-full opacity-100 bg-transparent appearance-none pointer-events-none z-30" />
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-zinc-400 font-mono">
+              <span id="txtStartLabel">Старт: 0.0с</span>
+              <span id="txtEndLabel">Конец: 0.0с</span>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-zinc-800">
+              <div>
+                <span class="text-xs font-bold text-white block">Инвертировать обрезку</span>
+                <span class="text-[10px] text-zinc-400">Удалить середину между ползунками, оставить бока</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="invertTrimToggle" class="sr-only peer">
+                <div class="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
+              </label>
+            </div>
+
+            <div class="pt-2 border-t border-zinc-800">
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] text-zinc-400">Громкость:</label>
+                <span id="volumeValText" class="text-[11px] font-bold text-brand-400">100%</span>
+              </div>
+              <input type="range" id="volumeSlider" min="0" max="2" step="0.05" value="1" class="w-full cursor-pointer" />
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: FORMAT BUTTONS -->
+      <div class="glass-panel rounded-3xl p-6 sm:p-8 border border-darkborder flex flex-col justify-between space-y-6 shadow-xl min-h-[460px]">
+        <div>
+          <h3 class="text-xl font-extrabold text-white tracking-tight flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-brand-500"></i> Выберите формат
+          </h3>
+          <p class="text-xs text-zinc-400">Кликните по кнопке формата — конвертация и скачивание начнутся сразу!</p>
+        </div>
+
+        <div id="formatButtonsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-auto"></div>
+
+        <div class="text-center border-t border-zinc-800/80 pt-4 text-xs text-zinc-500">
+          <i class="fa-solid fa-lock text-brand-500/80 mr-1"></i> Конвертация происходит на 100% локально в вашем браузере
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- Footer -->
+  <footer class="w-full border-t border-darkborder py-4 glass-panel text-center text-xs text-zinc-500 mt-auto">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <p>© Crys1s Convert • Локальный медиа-конвертер</p>
+      <div class="flex items-center space-x-4">
+        <span class="hover:text-zinc-300 transition-colors"><i class="fa-solid fa-shield-halved text-emerald-400 mr-1"></i> Приватность 100%</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    let currentFile = null;
+    let currentCategory = null;
+    let loadedImageObj = null;
+
+    // Interactive Crop Box & Image Rotation State
+    let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+    let rotationAngle = 0; // degrees (-180 to 180)
+
+    let isDraggingCrop = false;
+    let activeHandle = null; // 'nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w', 'move'
+    let dragStartX = 0, dragStartY = 0;
+    let initialCropRect = { ...cropRect };
+
+    let mediaDuration = 0;
+
+    const FORMAT_OPTIONS = {
+      image: [
+        { ext: 'png', label: 'PNG', icon: 'fa-file-image', desc: 'Прозрачность, без потерь' },
+        { ext: 'jpg', label: 'JPG', icon: 'fa-image', desc: 'Стандартный сжатый формат' },
+        { ext: 'webp', label: 'WEBP', icon: 'fa-photo-film', desc: 'Современный легкий формат' },
+        { ext: 'bmp', label: 'BMP', icon: 'fa-file', desc: 'Растровое изображение' },
+        { ext: 'ico', label: 'ICO', icon: 'fa-icons', desc: 'Иконка 64x64' },
+        { ext: 'pdf', label: 'PDF', icon: 'fa-file-pdf', desc: 'Документ PDF' }
+      ],
+      audio: [
+        { ext: 'mp3', label: 'MP3', icon: 'fa-file-audio', desc: 'Универсальный аудио-формат' },
+        { ext: 'ogg', label: 'OGG', icon: 'fa-music', desc: 'Высокое качество и сжатие' }
+      ],
+      video: [
+        { ext: 'webm', label: 'WEBM', icon: 'fa-film', desc: 'Видео WEBM со звуком' },
+        { ext: 'mp3', label: 'MP3 (Аудио)', icon: 'fa-file-audio', desc: 'Извлечь аудио MP3' },
+        { ext: 'ogg', label: 'OGG (Аудио)', icon: 'fa-music', desc: 'Извлечь аудио OGG' }
+      ],
+      document: [
+        { ext: 'txt', label: 'TXT', icon: 'fa-file-lines', desc: 'Текстовый файл' },
+        { ext: 'pdf', label: 'PDF', icon: 'fa-file-pdf', desc: 'PDF Документ' },
+        { ext: 'html', label: 'HTML', icon: 'fa-code', desc: 'HTML страница' },
+        { ext: 'json', label: 'JSON', icon: 'fa-brackets-curly', desc: 'JSON данные' },
+        { ext: 'csv', label: 'CSV', icon: 'fa-table', desc: 'Таблица CSV' },
+        { ext: 'md', label: 'Markdown', icon: 'fa-file-code', desc: 'Markdown текст' }
+      ]
+    };
+
+    const fileInput = document.getElementById('fileInput');
+    const initialView = document.getElementById('initialView');
+    const workspaceView = document.getElementById('workspaceView');
+    const globalDropOverlay = document.getElementById('globalDropOverlay');
+    const fileChangeHeaderBtn = document.getElementById('fileChangeHeaderBtn');
+
+    const fileNameText = document.getElementById('fileNameText');
+    const fileSizeText = document.getElementById('fileSizeText');
+    const fileTypeBadge = document.getElementById('fileTypeBadge');
+
+    const cropControls = document.getElementById('cropControls');
+    const colorInvertControl = document.getElementById('colorInvertControl');
+    const invertColorsToggle = document.getElementById('invertColorsToggle');
+    const cropWidthInput = document.getElementById('cropWidthInput');
+    const cropHeightInput = document.getElementById('cropHeightInput');
+    const cropCanvas = document.getElementById('cropCanvas');
+
+    const rotationSlider = document.getElementById('rotationSlider');
+    const rotationDegreeText = document.getElementById('rotationDegreeText');
+
+    const mediaControls = document.getElementById('mediaControls');
+    const rangeStart = document.getElementById('rangeStart');
+    const rangeEnd = document.getElementById('rangeEnd');
+    const timelineProgress = document.getElementById('timelineProgress');
+    const txtStartLabel = document.getElementById('txtStartLabel');
+    const txtEndLabel = document.getElementById('txtEndLabel');
+    const durationBadge = document.getElementById('durationBadge');
+    const invertTrimToggle = document.getElementById('invertTrimToggle');
+
+    const volumeSlider = document.getElementById('volumeSlider');
+    const volumeValText = document.getElementById('volumeValText');
+
+    const imagePreviewBox = document.getElementById('imagePreviewBox');
+    const videoPreviewBox = document.getElementById('videoPreviewBox');
+    const videoElement = document.getElementById('videoElement');
+    const audioPreviewBox = document.getElementById('audioPreviewBox');
+    const audioElement = document.getElementById('audioElement');
+    const docPreviewBox = document.getElementById('docPreviewBox');
+    const docPreviewText = document.getElementById('docPreviewText');
+
+    const formatButtonsGrid = document.getElementById('formatButtonsGrid');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const eyedropperModal = document.getElementById('eyedropperModal');
+    const eyedropperCanvas = document.getElementById('eyedropperCanvas');
+    const eyedropperHexText = document.getElementById('eyedropperHexText');
+    const copyHexBtn = document.getElementById('copyHexBtn');
+    let selectedHexColor = '#000000';
+
+    function triggerFilePicker() { fileInput.click(); }
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        loadFile(e.target.files[0]);
+        fileInput.value = '';
+      }
+    });
+
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; globalDropOverlay.classList.remove('hidden'); });
+    window.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; globalDropOverlay.classList.add('hidden'); } });
+    window.addEventListener('dragover', (e) => { e.preventDefault(); });
+    window.addEventListener('drop', (e) => { e.preventDefault(); dragCounter = 0; globalDropOverlay.classList.add('hidden'); if (e.dataTransfer.files?.length) loadFile(e.dataTransfer.files[0]); });
+
+    function loadFile(file) {
+      currentFile = file;
+      currentCategory = detectCategory(file);
+
+      fileNameText.textContent = file.name;
+      fileSizeText.textContent = formatBytes(file.size);
+
+      cropControls.classList.add('hidden');
+      colorInvertControl.classList.add('hidden');
+      mediaControls.classList.add('hidden');
+      imagePreviewBox.classList.add('hidden');
+      videoPreviewBox.classList.add('hidden');
+      audioPreviewBox.classList.add('hidden');
+      docPreviewBox.classList.add('hidden');
+
+      const icons = { image: 'fa-image', audio: 'fa-music', video: 'fa-video', document: 'fa-file-lines' };
+      fileTypeBadge.innerHTML = `<i class="fa-solid ${icons[currentCategory]}"></i>`;
+
+      initialView.classList.add('hidden');
+      workspaceView.classList.remove('hidden');
+      fileChangeHeaderBtn.classList.remove('hidden');
+      invertColorsToggle.checked = false;
+
+      if (currentCategory === 'image') setupImagePreview(file);
+      else if (currentCategory === 'video') setupVideoPreview(file);
+      else if (currentCategory === 'audio') setupAudioPreview(file);
+      else if (currentCategory === 'document') setupDocPreview(file);
+
+      renderFormatButtons();
+      showToast(`Файл "${file.name}" открыт`, 'info');
+    }
+
+    function resetToInitial() {
+      currentFile = null;
+      initialView.classList.remove('hidden');
+      workspaceView.classList.add('hidden');
+      fileChangeHeaderBtn.classList.add('hidden');
+    }
+
+    function detectCategory(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const mime = file.type.toLowerCase();
+      if (mime.startsWith('image/') || ['png','jpg','jpeg','webp','bmp','ico','svg'].includes(ext)) return 'image';
+      if (mime.startsWith('audio/') || ['mp3','wav','ogg','aac','flac','m4a'].includes(ext)) return 'audio';
+      if (mime.startsWith('video/') || ['mp4','webm','avi','mov','mkv'].includes(ext)) return 'video';
+      return 'document';
+    }
+
+    function setupImagePreview(file) {
+      imagePreviewBox.classList.remove('hidden');
+      cropControls.classList.remove('hidden');
+      colorInvertControl.classList.remove('hidden');
+
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        loadedImageObj = img;
+        rotationAngle = 0;
+        rotationSlider.value = 0;
+        rotationDegreeText.textContent = '0°';
+
+        cropRect = {
+          x: Math.round(img.width * 0.1),
+          y: Math.round(img.height * 0.1),
+          w: Math.round(img.width * 0.8),
+          h: Math.round(img.height * 0.8)
+        };
+
+        cropWidthInput.value = cropRect.w;
+        cropHeightInput.value = cropRect.h;
+        drawCropCanvas();
+      };
+      img.src = url;
+    }
+
+    function drawCropCanvas() {
+      if (!loadedImageObj) return;
+      const ctx = cropCanvas.getContext('2d');
+      cropCanvas.width = loadedImageObj.width;
+      cropCanvas.height = loadedImageObj.height;
+
+      const cw = loadedImageObj.width;
+      const ch = loadedImageObj.height;
+
+      ctx.save();
+      ctx.clearRect(0, 0, cw, ch);
+
+      // Draw rotated image with color inversion if enabled
+      ctx.translate(cw / 2, ch / 2);
+      ctx.rotate((rotationAngle * Math.PI) / 180);
+      if (invertColorsToggle.checked) ctx.filter = 'invert(100%)';
+      ctx.drawImage(loadedImageObj, -cw / 2, -ch / 2, cw, ch);
+      ctx.restore();
+
+      // Dark overlay over unselected areas
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.beginPath();
+      ctx.rect(0, 0, cw, ch);
+      ctx.rect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+      ctx.fill('evenodd');
+
+      // Crop Frame Border
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = Math.max(2, Math.round(cw / 400));
+      ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+
+      // 3x3 Grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 1;
+      const thirdW = cropRect.w / 3;
+      const thirdH = cropRect.h / 3;
+
+      ctx.beginPath();
+      // Vertical grid lines
+      ctx.moveTo(cropRect.x + thirdW, cropRect.y); ctx.lineTo(cropRect.x + thirdW, cropRect.y + cropRect.h);
+      ctx.moveTo(cropRect.x + thirdW * 2, cropRect.y); ctx.lineTo(cropRect.x + thirdW * 2, cropRect.y + cropRect.h);
+      // Horizontal grid lines
+      ctx.moveTo(cropRect.x, cropRect.y + thirdH); ctx.lineTo(cropRect.x + cropRect.w, cropRect.y + thirdH);
+      ctx.moveTo(cropRect.x, cropRect.y + thirdH * 2); ctx.lineTo(cropRect.x + cropRect.w, cropRect.y + thirdH * 2);
+      ctx.stroke();
+
+      // Crosshair + Center Circle
+      const centerX = cropRect.x + cropRect.w / 2;
+      const centerY = cropRect.y + cropRect.h / 2;
+      const crossSize = Math.min(cropRect.w, cropRect.h) * 0.12;
+
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(centerX - crossSize, centerY); ctx.lineTo(centerX + crossSize, centerY);
+      ctx.moveTo(centerX, centerY - crossSize); ctx.lineTo(centerX, centerY + crossSize);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, Math.max(4, crossSize * 0.3), 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Draw 8 Handles (NW, N, NE, E, SE, S, SW, W)
+      const handles = getHandles();
+      const handleRadius = Math.max(5, Math.round(cw / 120));
+
+      for (let key in handles) {
+        const h = handles[key];
+        ctx.fillStyle = '#eab308';
+        ctx.strokeStyle = '#09090b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, handleRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    function getHandles() {
+      const { x, y, w, h } = cropRect;
+      return {
+        nw: { x: x, y: y },
+        n:  { x: x + w / 2, y: y },
+        ne: { x: x + w, y: y },
+        e:  { x: x + w, y: y + h / 2 },
+        se: { x: x + w, y: y + h },
+        s:  { x: x + w / 2, y: y + h },
+        sw: { x: x, y: y + h },
+        w:  { x: x, y: y + h / 2 }
+      };
+    }
+
+    // Rotation controls
+    rotationSlider.addEventListener('input', (e) => {
+      rotationAngle = parseInt(e.target.value) || 0;
+      rotationDegreeText.textContent = `${rotationAngle}°`;
+      drawCropCanvas();
+    });
+
+    function resetRotation() {
+      rotationAngle = 0;
+      rotationSlider.value = 0;
+      rotationDegreeText.textContent = '0°';
+      drawCropCanvas();
+    }
+
+    // Wheel event: Ctrl+Wheel = Rotate, Wheel alone = Zoom crop rect
+    cropCanvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!loadedImageObj) return;
+
+      if (e.ctrlKey) {
+        // Rotate Image
+        const delta = e.deltaY > 0 ? 2 : -2;
+        rotationAngle = Math.min(180, Math.max(-180, rotationAngle + delta));
+        rotationSlider.value = rotationAngle;
+        rotationDegreeText.textContent = `${rotationAngle}°`;
+      } else {
+        // Zoom Crop Box
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        let newW = Math.min(loadedImageObj.width, Math.max(30, Math.round(cropRect.w * delta)));
+        let newH = Math.min(loadedImageObj.height, Math.max(30, Math.round(cropRect.h * delta)));
+        let newX = Math.max(0, Math.min(loadedImageObj.width - newW, cropRect.x + (cropRect.w - newW) / 2));
+        let newY = Math.max(0, Math.min(loadedImageObj.height - newH, cropRect.y + (cropRect.h - newH) / 2));
+
+        cropRect = { x: newX, y: newY, w: newW, h: newH };
+        cropWidthInput.value = newW;
+        cropHeightInput.value = newH;
+      }
+      drawCropCanvas();
+    }, { passive: false });
+
+    // Interactive Dragging & Resizing Handles Engine
+    function getCanvasCoords(e) {
+      const rect = cropCanvas.getBoundingClientRect();
+      const scaleX = cropCanvas.width / rect.width;
+      const scaleY = cropCanvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    cropCanvas.addEventListener('mousedown', (e) => {
+      if (!loadedImageObj) return;
+      const { x, y } = getCanvasCoords(e);
+      const handles = getHandles();
+      const handleRadius = Math.max(10, Math.round(cropCanvas.width / 60));
+
+      activeHandle = null;
+
+      // Check handle clicks
+      for (let key in handles) {
+        const h = handles[key];
+        const dist = Math.hypot(x - h.x, y - h.y);
+        if (dist <= handleRadius) {
+          activeHandle = key;
+          break;
+        }
+      }
+
+      // Check moving crop box
+      if (!activeHandle) {
+        if (x >= cropRect.x && x <= cropRect.x + cropRect.w && y >= cropRect.y && y <= cropRect.y + cropRect.h) {
+          activeHandle = 'move';
+        }
+      }
+
+      if (activeHandle) {
+        isDraggingCrop = true;
+        dragStartX = x;
+        dragStartY = y;
+        initialCropRect = { ...cropRect };
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingCrop || !loadedImageObj) {
+        // Update cursor icon on hover
+        if (currentCategory === 'image' && loadedImageObj && !isDraggingCrop) {
+          const { x, y } = getCanvasCoords(e);
+          const handles = getHandles();
+          const handleRadius = Math.max(10, Math.round(cropCanvas.width / 60));
+          let hoverHandle = null;
+
+          for (let key in handles) {
+            if (Math.hypot(x - handles[key].x, y - handles[key].y) <= handleRadius) {
+              hoverHandle = key; break;
+            }
+          }
+
+          if (hoverHandle) {
+            const cursors = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };
+            cropCanvas.style.cursor = cursors[hoverHandle];
+          } else if (x >= cropRect.x && x <= cropRect.x + cropRect.w && y >= cropRect.y && y <= cropRect.y + cropRect.h) {
+            cropCanvas.style.cursor = 'move';
+          } else {
+            cropCanvas.style.cursor = 'default';
+          }
+        }
+        return;
+      }
+
+      const { x, y } = getCanvasCoords(e);
+      const dx = x - dragStartX;
+      const dy = y - dragStartY;
+
+      let { x: nx, y: ny, w: nw, h: nh } = initialCropRect;
+      const maxW = loadedImageObj.width;
+      const maxH = loadedImageObj.height;
+
+      if (activeHandle === 'move') {
+        nx = Math.max(0, Math.min(maxW - nw, initialCropRect.x + dx));
+        ny = Math.max(0, Math.min(maxH - nh, initialCropRect.y + dy));
+      } else {
+        if (activeHandle.includes('e')) nw = Math.max(30, Math.min(maxW - initialCropRect.x, initialCropRect.w + dx));
+        if (activeHandle.includes('s')) nh = Math.max(30, Math.min(maxH - initialCropRect.y, initialCropRect.h + dy));
+        if (activeHandle.includes('w')) {
+          const possibleW = Math.max(30, initialCropRect.w - dx);
+          nx = initialCropRect.x + (initialCropRect.w - possibleW);
+          nw = possibleW;
+        }
+        if (activeHandle.includes('n')) {
+          const possibleH = Math.max(30, initialCropRect.h - dy);
+          ny = initialCropRect.y + (initialCropRect.h - possibleH);
+          nh = possibleH;
+        }
+      }
+
+      cropRect = { x: Math.round(nx), y: Math.round(ny), w: Math.round(nw), h: Math.round(nh) };
+      cropWidthInput.value = cropRect.w;
+      cropHeightInput.value = cropRect.h;
+      drawCropCanvas();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingCrop = false;
+      activeHandle = null;
+    });
+
+    cropWidthInput.addEventListener('input', (e) => {
+      cropRect.w = Math.max(30, parseInt(e.target.value) || 30);
+      drawCropCanvas();
+    });
+    cropHeightInput.addEventListener('input', (e) => {
+      cropRect.h = Math.max(30, parseInt(e.target.value) || 30);
+      drawCropCanvas();
+    });
+
+    invertColorsToggle.addEventListener('change', () => {
+      if (currentCategory === 'image') drawCropCanvas();
+      if (currentCategory === 'video') {
+        videoElement.style.filter = invertColorsToggle.checked ? 'invert(100%)' : 'none';
+      }
+    });
+
+    // Eyedropper Modal
+    function openEyedropper() {
+      if (!loadedImageObj) return;
+      eyedropperModal.classList.remove('hidden');
+      const ctx = eyedropperCanvas.getContext('2d');
+      eyedropperCanvas.width = loadedImageObj.width;
+      eyedropperCanvas.height = loadedImageObj.height;
+      const cw = loadedImageObj.width; const ch = loadedImageObj.height;
+
+      ctx.save();
+      ctx.translate(cw / 2, ch / 2);
+      ctx.rotate((rotationAngle * Math.PI) / 180);
+      if (invertColorsToggle.checked) ctx.filter = 'invert(100%)';
+      ctx.drawImage(loadedImageObj, -cw / 2, -ch / 2, cw, ch);
+      ctx.restore();
+    }
+
+    function closeEyedropper() { eyedropperModal.classList.add('hidden'); }
+
+    eyedropperCanvas.addEventListener('mousemove', (e) => {
+      const rect = eyedropperCanvas.getBoundingClientRect();
+      const scaleX = eyedropperCanvas.width / rect.width;
+      const scaleY = eyedropperCanvas.height / rect.height;
+      const x = Math.floor((e.clientX - rect.left) * scaleX);
+      const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+      if (x >= 0 && y >= 0 && x < eyedropperCanvas.width && y < eyedropperCanvas.height) {
+        const ctx = eyedropperCanvas.getContext('2d');
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        selectedHexColor = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase()}`;
+        eyedropperHexText.textContent = selectedHexColor;
+      }
+    });
+
+    eyedropperCanvas.addEventListener('click', () => {
+      navigator.clipboard.writeText(selectedHexColor);
+      showToast(`Цвет ${selectedHexColor} скопирован!`, 'success');
+      closeEyedropper();
+    });
+
+    copyHexBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(selectedHexColor);
+      showToast(`Цвет ${selectedHexColor} скопирован!`, 'success');
+    });
+
+    function setupVideoPreview(file) {
+      videoPreviewBox.classList.remove('hidden');
+      mediaControls.classList.remove('hidden');
+      colorInvertControl.classList.remove('hidden');
+
+      const url = URL.createObjectURL(file);
+      videoElement.src = url;
+      videoElement.onloadedmetadata = () => {
+        mediaDuration = videoElement.duration || 0;
+        initTimeline(mediaDuration);
+      };
+    }
+
+    function setupAudioPreview(file) {
+      audioPreviewBox.classList.remove('hidden');
+      mediaControls.classList.remove('hidden');
+
+      const url = URL.createObjectURL(file);
+      audioElement.src = url;
+      audioElement.onloadedmetadata = () => {
+        mediaDuration = audioElement.duration || 0;
+        initTimeline(mediaDuration);
+      };
+    }
+
+    function initTimeline(dur) {
+      rangeStart.min = 0; rangeStart.max = dur; rangeStart.step = 0.1; rangeStart.value = 0;
+      rangeEnd.min = 0; rangeEnd.max = dur; rangeEnd.step = 0.1; rangeEnd.value = dur;
+      updateTimelineUI();
+    }
+
+    function updateTimelineUI() {
+      let start = parseFloat(rangeStart.value);
+      let end = parseFloat(rangeEnd.value);
+      if (start > end) { start = end; rangeStart.value = start; }
+
+      txtStartLabel.textContent = `Старт: ${start.toFixed(1)}с`;
+      txtEndLabel.textContent = `Конец: ${end.toFixed(1)}с`;
+      durationBadge.textContent = `${formatTime(start)} / ${formatTime(mediaDuration)}`;
+
+      const leftPercent = (start / mediaDuration) * 100;
+      const rightPercent = ((mediaDuration - end) / mediaDuration) * 100;
+      timelineProgress.style.left = `${leftPercent}%`;
+      timelineProgress.style.right = `${rightPercent}%`;
+    }
+
+    function handleSliderInteraction(activeTime) {
+      updateTimelineUI();
+      if (currentCategory === 'video' && videoElement) {
+        videoElement.pause();
+        videoElement.currentTime = activeTime;
+      } else if (currentCategory === 'audio' && audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = activeTime;
+      }
+    }
+
+    rangeStart.addEventListener('input', () => {
+      let startVal = parseFloat(rangeStart.value);
+      let endVal = parseFloat(rangeEnd.value);
+      if (startVal >= endVal) { rangeStart.value = endVal; startVal = endVal; }
+      handleSliderInteraction(startVal);
+    });
+
+    rangeEnd.addEventListener('input', () => {
+      let startVal = parseFloat(rangeStart.value);
+      let endVal = parseFloat(rangeEnd.value);
+      if (endVal <= startVal) { rangeEnd.value = startVal; endVal = startVal; }
+      handleSliderInteraction(endVal);
+    });
+
+    volumeSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      volumeValText.textContent = `${Math.round(val * 100)}%`;
+      if (videoElement) videoElement.volume = Math.min(1, val);
+      if (audioElement) audioElement.volume = Math.min(1, val);
+    });
+
+    async function setupDocPreview(file) {
+      docPreviewBox.classList.remove('hidden');
+      try {
+        const text = await file.text();
+        docPreviewText.textContent = text.slice(0, 1500) + (text.length > 1500 ? '\n\n[...Предпросмотр обрезан...]' : '');
+      } catch (err) {
+        docPreviewText.textContent = 'Ошибка чтения текстового содержимого.';
+      }
+    }
+
+    function renderFormatButtons() {
+      formatButtonsGrid.innerHTML = '';
+      const targets = FORMAT_OPTIONS[currentCategory] || [];
+      targets.forEach(item => {
+        const btn = document.createElement('button');
+        btn.onclick = () => convertAndDownload(item.ext, btn);
+        btn.className = "group relative p-6 rounded-2xl bg-zinc-800/80 hover:bg-zinc-800 border-2 border-zinc-700/80 hover:border-brand-500 flex flex-col items-start justify-between text-left transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/10 active:scale-95";
+        btn.innerHTML = `
+          <div class="w-full flex items-center justify-between mb-3">
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-2xl text-brand-400 border border-zinc-700/60 group-hover:border-brand-500/60 group-hover:scale-110 transition-all">
+              <i class="fa-solid ${item.icon}"></i>
+            </div>
+            <span class="text-xs font-extrabold uppercase px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 group-hover:bg-brand-500 group-hover:text-black transition-all">
+              ${item.label}
+            </span>
+          </div>
+          <div>
+            <h4 class="text-lg font-bold text-white mb-0.5 group-hover:text-brand-400 transition-colors">${item.label}</h4>
+            <p class="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">${item.desc}</p>
+          </div>
+          <div class="w-full mt-4 flex items-center justify-end text-brand-500 text-xs font-semibold">
+            <span>Конвертировать и скачать</span>
+            <i class="fa-solid fa-arrow-right ml-1.5 group-hover:translate-x-1 transition-transform"></i>
+          </div>
+        `;
+        formatButtonsGrid.appendChild(btn);
+      });
+    }
+
+    async function convertAndDownload(targetExt, btnElement) {
+      if (!currentFile) return;
+      const origContent = btnElement.innerHTML;
+      btnElement.disabled = true;
+      btnElement.innerHTML = `
+        <div class="w-full h-full flex flex-col items-center justify-center py-6 space-y-2 text-brand-400">
+          <i class="fa-solid fa-circle-notch animate-spin text-3xl"></i>
+          <span class="text-xs font-bold text-zinc-200">Обработка...</span>
+        </div>
+      `;
+
+      try {
+        let blob;
+        const originalBase = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name;
+        const outFileName = `${originalBase}_crys1s.${targetExt}`;
+
+        if (currentCategory === 'image') {
+          blob = await processImageExport(targetExt);
+        } else if (currentCategory === 'audio') {
+          blob = await processAudioExport(targetExt);
+        } else if (currentCategory === 'video') {
+          if (targetExt === 'mp3' || targetExt === 'ogg') {
+            blob = await processAudioExport(targetExt);
+          } else {
+            blob = await processVideoExport(targetExt);
+          }
+        } else if (currentCategory === 'document') {
+          blob = await processDocumentExport(targetExt);
+        }
+
+        downloadBlob(blob, outFileName);
+        showToast(`Файл "${outFileName}" успешно сохранен!`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(`Ошибка: ${err.message || 'Не удалось обработать файл'}`, 'error');
+      } finally {
+        btnElement.disabled = false;
+        btnElement.innerHTML = origContent;
+      }
+    }
+
+    function processImageExport(targetExt) {
+      return new Promise((resolve, reject) => {
+        if (!loadedImageObj) return reject(new Error('Изображение не загружено'));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = cropRect.w;
+        canvas.height = cropRect.h;
+        const ctx = canvas.getContext('2d');
+
+        if (targetExt === 'jpg' || targetExt === 'jpeg') {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, cropRect.w, cropRect.h);
+        }
+
+        const cw = loadedImageObj.width;
+        const ch = loadedImageObj.height;
+
+        ctx.save();
+        ctx.translate(-cropRect.x, -cropRect.y);
+
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate((rotationAngle * Math.PI) / 180);
+        if (invertColorsToggle.checked) ctx.filter = 'invert(100%)';
+        ctx.drawImage(loadedImageObj, -cw / 2, -ch / 2, cw, ch);
+        ctx.restore();
+
+        if (targetExt === 'pdf') {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: cropRect.w > cropRect.h ? 'landscape' : 'portrait', unit: 'px', format: [cropRect.w, cropRect.h] });
+          doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, cropRect.w, cropRect.h);
+          resolve(doc.output('blob'));
+          return;
+        }
+
+        let mime = 'image/png';
+        if (['jpg', 'jpeg'].includes(targetExt)) mime = 'image/jpeg';
+        if (targetExt === 'webp') mime = 'image/webp';
+        if (targetExt === 'bmp') mime = 'image/bmp';
+        if (targetExt === 'ico') mime = 'image/x-icon';
+
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Не удалось сгенерировать Blob'));
+        }, mime, 0.92);
+      });
+    }
+
+    async function processAudioExport(targetExt) {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuf = await currentFile.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+
+      const start = parseFloat(rangeStart.value) || 0;
+      const end = parseFloat(rangeEnd.value) || audioBuffer.duration;
+      const isInverted = invertTrimToggle.checked;
+      const vol = parseFloat(volumeSlider.value) || 1.0;
+      const sampleRate = audioBuffer.sampleRate;
+
+      if (!isInverted) {
+        const sliceDuration = Math.max(0.1, end - start);
+        const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, Math.floor(sliceDuration * sampleRate), sampleRate);
+        const source = offlineCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        const gainNode = offlineCtx.createGain();
+        gainNode.gain.value = vol;
+        source.connect(gainNode);
+        gainNode.connect(offlineCtx.destination);
+        source.start(0, start, sliceDuration);
+        const rendered = await offlineCtx.startRendering();
+        return new Blob([audioBufferToWav(rendered)], { type: targetExt === 'ogg' ? 'audio/ogg' : 'audio/mp3' });
+      } else {
+        const part1Dur = Math.max(0, start);
+        const part2Dur = Math.max(0, audioBuffer.duration - end);
+        const totalDur = part1Dur + part2Dur;
+        if (totalDur <= 0.05) throw new Error('Слишком короткий аудиофрагмент');
+
+        const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, Math.floor(totalDur * sampleRate), sampleRate);
+        const gainNode = offlineCtx.createGain();
+        gainNode.gain.value = vol;
+        gainNode.connect(offlineCtx.destination);
+
+        if (part1Dur > 0.05) {
+          const s1 = offlineCtx.createBufferSource(); s1.buffer = audioBuffer; s1.connect(gainNode); s1.start(0, 0, part1Dur);
+        }
+        if (part2Dur > 0.05) {
+          const s2 = offlineCtx.createBufferSource(); s2.buffer = audioBuffer; s2.connect(gainNode); s2.start(part1Dur, end, part2Dur);
+        }
+
+        const rendered = await offlineCtx.startRendering();
+        return new Blob([audioBufferToWav(rendered)], { type: targetExt === 'ogg' ? 'audio/ogg' : 'audio/mp3' });
+      }
+    }
+
+    async function processVideoExport(targetExt) {
+      return new Promise(async (resolve, reject) => {
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(currentFile);
+        video.muted = true;
+        video.playsInline = true;
+
+        await new Promise((res) => { video.onloadedmetadata = res; });
+
+        const start = parseFloat(rangeStart.value) || 0;
+        const end = parseFloat(rangeEnd.value) || video.duration;
+        const isInverted = invertTrimToggle.checked;
+        const vol = parseFloat(volumeSlider.value) || 1.0;
+        const doInvertColors = invertColorsToggle.checked;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuf = await currentFile.arrayBuffer();
+        let audioBuffer = null;
+        try { audioBuffer = await audioCtx.decodeAudioData(arrayBuf); } catch(e) {}
+
+        const sampleRate = audioBuffer ? audioBuffer.sampleRate : 44100;
+        let renderedAudioBuffer = null;
+
+        if (audioBuffer) {
+          if (!isInverted) {
+            const sliceDuration = Math.max(0.1, end - start);
+            const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, Math.floor(sliceDuration * sampleRate), sampleRate);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            const gain = offlineCtx.createGain(); gain.gain.value = vol;
+            source.connect(gain); gain.connect(offlineCtx.destination);
+            source.start(0, start, sliceDuration);
+            renderedAudioBuffer = await offlineCtx.startRendering();
+          } else {
+            const p1 = Math.max(0, start);
+            const p2 = Math.max(0, audioBuffer.duration - end);
+            const totalDur = p1 + p2;
+            const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, Math.floor(totalDur * sampleRate), sampleRate);
+            const gain = offlineCtx.createGain(); gain.gain.value = vol;
+            gain.connect(offlineCtx.destination);
+            if (p1 > 0.05) {
+              const s1 = offlineCtx.createBufferSource(); s1.buffer = audioBuffer; s1.connect(gain); s1.start(0, 0, p1);
+            }
+            if (p2 > 0.05) {
+              const s2 = offlineCtx.createBufferSource(); s2.buffer = audioBuffer; s2.connect(gain); s2.start(p1, end, p2);
+            }
+            renderedAudioBuffer = await offlineCtx.startRendering();
+          }
+        }
+
+        let finalAudioNode = null;
+        if (renderedAudioBuffer) {
+          const destNode = audioCtx.createMediaStreamDestination();
+          const srcNode = audioCtx.createBufferSource();
+          srcNode.buffer = renderedAudioBuffer;
+          srcNode.connect(destNode);
+          srcNode.start(0);
+          finalAudioNode = destNode;
+        }
+
+        const canvasStream = canvas.captureStream(30);
+        const tracks = [...canvasStream.getVideoTracks()];
+        if (finalAudioNode) tracks.push(...finalAudioNode.stream.getAudioTracks());
+
+        const combinedStream = new MediaStream(tracks);
+        let mimeType = 'video/webm;codecs=vp9,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+
+        let recorder;
+        try {
+          recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 5000000 });
+        } catch(e) {
+          recorder = new MediaRecorder(combinedStream);
+        }
+
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          resolve(blob);
+        };
+
+        recorder.start();
+
+        if (!isInverted) {
+          video.currentTime = start;
+          video.onseeked = () => {
+            video.play();
+            const frameInterval = setInterval(() => {
+              if (video.currentTime >= end || video.ended) {
+                clearInterval(frameInterval);
+                video.pause();
+                recorder.stop();
+              } else {
+                ctx.save();
+                if (doInvertColors) ctx.filter = 'invert(100%)';
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+              }
+            }, 33);
+          };
+        } else {
+          video.currentTime = 0;
+          video.onseeked = () => {
+            video.play();
+            let phase = 1;
+            const frameInterval = setInterval(() => {
+              if (phase === 1 && video.currentTime >= start) {
+                video.currentTime = end;
+                phase = 2;
+                return;
+              }
+              if (phase === 2 && video.currentTime >= video.duration) {
+                clearInterval(frameInterval);
+                video.pause();
+                recorder.stop();
+                return;
+              }
+              ctx.save();
+              if (doInvertColors) ctx.filter = 'invert(100%)';
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              ctx.restore();
+            }, 33);
+          };
+        }
+      });
+    }
+
+    function audioBufferToWav(buffer) {
+      const numOfChan = buffer.numberOfChannels;
+      const length = buffer.length * numOfChan * 2 + 44;
+      const out = new DataView(new ArrayBuffer(length));
+      let channels = [], i, sample, offset = 0, pos = 0;
+
+      function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+      function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+      setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+      setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+      setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+      setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); setUint32(length - pos - 4);
+
+      for (i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+      while (offset < buffer.length) {
+        for (i = 0; i < numOfChan; i++) {
+          sample = Math.max(-1, Math.min(1, channels[i][offset]));
+          sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+          out.setInt16(pos, sample, true); pos += 2;
+        }
+        offset++;
+      }
+      return out.buffer;
+    }
+
+    async function processDocumentExport(targetExt) {
+      const textContent = await currentFile.text();
+      if (targetExt === 'txt') return new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+      if (targetExt === 'html') {
+        const body = currentFile.name.endsWith('.md') ? marked.parse(textContent) : textContent;
+        return new Blob([`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Converted</title></head><body style="font-family:sans-serif;padding:2rem;">${body}</body></html>`], { type: 'text/html;charset=utf-8' });
+      }
+      if (targetExt === 'pdf') {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text(doc.splitTextToSize(textContent, 180), 10, 10);
+        return doc.output('blob');
+      }
+      if (targetExt === 'json') {
+        try {
+          return new Blob([JSON.stringify(JSON.parse(textContent), null, 2)], { type: 'application/json' });
+        } catch(e) {
+          return new Blob([JSON.stringify({ content: textContent }, null, 2)], { type: 'application/json' });
+        }
+      }
+      return new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'border-emerald-500/40 text-emerald-300 bg-zinc-900',
+        error: 'border-red-500/40 text-red-300 bg-zinc-900',
+        info: 'border-brand-500/40 text-zinc-200 bg-zinc-900'
+      };
+      toast.className = `px-4 py-3 rounded-2xl border ${colors[type]} shadow-2xl text-xs font-semibold flex items-center space-x-2 transition-all transform translate-y-2 opacity-0 pointer-events-auto`;
+      toast.innerHTML = `<span>${message}</span>`;
+      toastContainer.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 50);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
