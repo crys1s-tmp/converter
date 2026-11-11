@@ -972,7 +972,7 @@
       try {
         let blob;
         const originalBase = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name;
-        const outFileName = `${originalBase}_crys1s.${targetExt}`;
+        const outFileName = `${originalBase}.${targetExt}`;
 
         if (currentCategory === 'image') {
           blob = await processImageExport(targetExt);
